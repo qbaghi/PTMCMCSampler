@@ -63,6 +63,7 @@ class PTSampler(object):
         logl,
         logp,
         cov,
+        cond,
         groups=None,
         loglargs=[],
         loglkwargs={},
@@ -84,6 +85,8 @@ class PTSampler(object):
         self.ndim = ndim
         self.logl = _function_wrapper(logl, loglargs, loglkwargs)
         self.logp = _function_wrapper(logp, logpargs, logpkwargs)
+        self.cond = cond # For the conditional step
+
         if logl_grad is not None and logp_grad is not None:
             self.logl_grad = _function_wrapper(logl_grad, loglargs, loglkwargs)
             self.logp_grad = _function_wrapper(logp_grad, logpargs, logpkwargs)
@@ -434,6 +437,10 @@ class PTSampler(object):
 
             # call PTMCMCOneStep
             p0, lnlike0, lnprob0 = self.PTMCMCOneStep(p0, lnlike0, lnprob0, iter)
+            # Conditional step, i.e. update secondary arguments or the likelihoodss
+            loglargs0 = self.cond(p0)
+            self.logl.update_args(loglargs0)
+            self.logl_grad.update_args(loglargs0)
 
             # compute effective number of samples
             if iter % 1000 == 0 and iter > 2 * self.burn and self.MPIrank == 0:
@@ -1078,3 +1085,7 @@ class _function_wrapper(object):
 
     def __call__(self, x):
         return self.f(x, *self.args, **self.kwargs)
+
+    def update_args(self, args):
+
+        self.args = args
