@@ -1,6 +1,6 @@
 # gibbs
 
-This is a fork of [https://github.com/jellis18/PTMCMCSampler](Justin Ellis and Rutger van Haasteren's code) to implement a PTMCMC-within-Gibbs sampler.
+This is a fork of [Justin Ellis and Rutger van Haasteren code](https://github.com/jellis18/PTMCMCSampler) to implement a PTMCMC-within-Gibbs sampler.
 
 
 ## Attribution
