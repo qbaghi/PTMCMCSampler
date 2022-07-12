@@ -40,6 +40,7 @@ class PTSampler(object):
     @param logl: log-likelihood function
     @param logp: log prior function (must be normalized for evidence evaluation)
     @param cov: Initial covariance matrix of model parameters for jump proposals
+    @param cond: Conditional function that draws auxiliary parameters given main parameters
     @param covinds: Indices of parameters for which to perform adaptive jumps
     @param loglargs: any additional arguments (apart from the parameter vector) for
     log likelihood
@@ -63,7 +64,7 @@ class PTSampler(object):
         logl,
         logp,
         cov,
-        cond,
+        cond=None,
         groups=None,
         loglargs=[],
         loglkwargs={},
@@ -438,9 +439,10 @@ class PTSampler(object):
             # call PTMCMCOneStep
             p0, lnlike0, lnprob0 = self.PTMCMCOneStep(p0, lnlike0, lnprob0, iter)
             # Conditional step, i.e. update secondary arguments or the likelihoodss
-            loglargs0 = self.cond(p0)
-            self.logl.update_args(loglargs0)
-            self.logl_grad.update_args(loglargs0)
+            if self.cond is not None:
+                loglargs0 = self.cond(p0)
+                self.logl.update_args(loglargs0)
+                self.logl_grad.update_args(loglargs0)
 
             # compute effective number of samples
             if iter % 1000 == 0 and iter > 2 * self.burn and self.MPIrank == 0:
