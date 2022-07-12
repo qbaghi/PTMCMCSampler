@@ -38,7 +38,7 @@ format:
 	black .
 
 lint:
-	black --check .
+    ## black --check .
 	flake8 .
 
 clean: clean-build clean-pyc clean-test ## remove all build, test, coverage and Python artifacts
