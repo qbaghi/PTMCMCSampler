@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import pickle
 
 import numpy as np
 
@@ -76,6 +77,7 @@ class PTSampler(object):
         outDir="./chains",
         verbose=True,
         resume=False,
+        pickling=False,
     ):
 
         # MPI initialization
@@ -134,6 +136,9 @@ class PTSampler(object):
 
         # indicator for auxilary jumps
         self.aux = []
+
+        # Whether to save chains in TXT files or binaries
+        self.pickling = pickling
 
     def initialize(
         self,
@@ -261,9 +266,15 @@ class PTSampler(object):
         # hot chain sampling from prior
         if hotChain and self.MPIrank == self.nchain - 1:
             self.temp = 1e80
-            self.fname = self.outDir + "/chain_hot.txt"
+            if not self.pickling:
+                self.fname = self.outDir + "/chain_hot.txt"
+            else:
+                self.fname = self.outDir + "/chain_hot.p"
         else:
-            self.fname = self.outDir + "/chain_{0}.txt".format(self.temp)
+            if not self.pickling:
+                self.fname = self.outDir + "/chain_{0}.txt".format(self.temp)
+            else:
+                self.fname = self.outDir + "/chain_{0}.p".format(self.temp)
 
         # write hot chains
         self.writeHotChains = writeHotChains
@@ -731,16 +742,28 @@ class PTSampler(object):
         """
 
         self._chainfile = open(self.fname, "a+")
+        indices = np.arange((iter - self.isave), iter, self.thin)
+        chain_save = np.zeros((len(indices), self.ndim + 4))
+
         for jj in range((iter - self.isave), iter, self.thin):
             ind = int(jj / self.thin)
             pt_acc = 1
             if self.MPIrank < self.nchain - 1 and self.swapProposed != 0:
                 pt_acc = self.nswap_accepted / self.swapProposed
-
-            self._chainfile.write("\t".join(["%22.22f" % (self._chain[ind, kk]) for kk in range(self.ndim)]))
-            self._chainfile.write(
-                "\t%f\t%f\t%f\t%f\n" % (self._lnprob[ind], self._lnlike[ind], self.naccepted / iter, pt_acc)
-            )
+            # For text files
+            if not self.pickling:
+                self._chainfile.write("\t".join(["%22.22f" % (self._chain[ind, kk]) for kk in range(self.ndim)]))
+                self._chainfile.write(
+                    "\t%f\t%f\t%f\t%f\n" % (self._lnprob[ind], self._lnlike[ind], self.naccepted / iter, pt_acc)
+                )
+            else:
+                jj_save = jj - (iter - self.isave)
+                chain_save[jj_save, 0:self.ndim] = self._chain[ind, :] 
+                chain_save[jj_save, self.ndim:] = np.array(
+                    [self._lnprob[ind], self._lnlike[ind], self._lnlike[ind], 
+                     self.naccepted / iter, pt_acc])
+        if self.pickling:
+            pickle.dump(chain_save, self._chainfile)
         self._chainfile.close()
 
         # write jump statistics files ####
