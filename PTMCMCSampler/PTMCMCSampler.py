@@ -1,7 +1,7 @@
 import os
 import sys
 import time
-import pickle
+import h5py
 
 import numpy as np
 
@@ -77,7 +77,7 @@ class PTSampler(object):
         outDir="./chains",
         verbose=True,
         resume=False,
-        pickling=False,
+        hdf5=False,
     ):
 
         # MPI initialization
@@ -138,7 +138,7 @@ class PTSampler(object):
         self.aux = []
 
         # Whether to save chains in TXT files or binaries
-        self.pickling = pickling
+        self.hdf5 = hdf5
 
     def initialize(
         self,
@@ -266,15 +266,15 @@ class PTSampler(object):
         # hot chain sampling from prior
         if hotChain and self.MPIrank == self.nchain - 1:
             self.temp = 1e80
-            if not self.pickling:
+            if not self.hdf5:
                 self.fname = self.outDir + "/chain_hot.txt"
             else:
-                self.fname = self.outDir + "/chain_hot.p"
+                self.fname = self.outDir + "/chain_hot.h5"
         else:
-            if not self.pickling:
+            if not self.hdf5:
                 self.fname = self.outDir + "/chain_{0}.txt".format(self.temp)
             else:
-                self.fname = self.outDir + "/chain_{0}.p".format(self.temp)
+                self.fname = self.outDir + "/chain_{0}.h5".format(self.temp)
 
         # write hot chains
         self.writeHotChains = writeHotChains
@@ -291,9 +291,19 @@ class PTSampler(object):
                 os.system("sed -ie '$d' {0}".format(self.fname))
                 self.resumechain = np.loadtxt(self.fname)
                 self.resumeLength = self.resumechain.shape[0]
-            self._chainfile = open(self.fname, "a")
+            if self.hdf5:
+                self._chainfile = h5py.File(self.fname, "a")
+            else:
+                self._chainfile = open(self.fname, "a")
         else:
-            self._chainfile = open(self.fname, "w")
+            if self.hdf5:
+                self._chainfile = h5py.File(self.fname, "w")
+                # self._chainfile.create_dataset('lnprob', chunks=True, maxshape=(None,))
+                # self._chainfile.create_dataset('lnlike', chunks=True, maxshape=(None,))
+                # self._chainfile.create_dataset('acceprate', chunks=True, maxshape=(None,))
+                # self._chainfile.create_dataset('ptacc', chunks=True, maxshape=(None,))
+            else:    
+                self._chainfile = open(self.fname, "w")
         self._chainfile.close()
 
     def updateChains(self, p0, lnlike0, lnprob0, iter):
@@ -740,10 +750,12 @@ class PTSampler(object):
         @param iter: Iteration of sampler
 
         """
-
-        self._chainfile = open(self.fname, "a+")
-        indices = np.arange((iter - self.isave), iter, self.thin)
-        chain_save = np.zeros((len(indices), self.ndim + 4))
+        
+        if not self.hdf5:
+            self._chainfile = open(self.fname, "a+")
+        else:
+            indices = np.arange((iter - self.isave), iter, self.thin)
+            chain_save = np.zeros((len(indices), self.ndim + 5))        
 
         for jj in range((iter - self.isave), iter, self.thin):
             ind = int(jj / self.thin)
@@ -751,19 +763,26 @@ class PTSampler(object):
             if self.MPIrank < self.nchain - 1 and self.swapProposed != 0:
                 pt_acc = self.nswap_accepted / self.swapProposed
             # For text files
-            if not self.pickling:
+            if not self.hdf5:
                 self._chainfile.write("\t".join(["%22.22f" % (self._chain[ind, kk]) for kk in range(self.ndim)]))
                 self._chainfile.write(
                     "\t%f\t%f\t%f\t%f\n" % (self._lnprob[ind], self._lnlike[ind], self.naccepted / iter, pt_acc)
                 )
+            # For binary files
             else:
                 jj_save = jj - (iter - self.isave)
                 chain_save[jj_save, 0:self.ndim] = self._chain[ind, :] 
                 chain_save[jj_save, self.ndim:] = np.array(
                     [self._lnprob[ind], self._lnlike[ind], self._lnlike[ind], 
                      self.naccepted / iter, pt_acc])
-        if self.pickling:
-            pickle.dump(chain_save, self._chainfile)
+        # Dumping binary files if needed
+        if self.hdf5:
+            self._chainfile = h5py.File(self.fname, 'a')
+            if 'chains' in self._chainfile.keys():
+                self._chainfile["chains"].resize((self._chainfile["chains"].shape[0] + chain_save.shape[0]), axis = 0)
+                self._chainfile["chains"][-chain_save.shape[0]:] = chain_save
+            else:
+                self._chainfile.create_dataset('chains', data=chain_save, chunks=True, maxshape=(None,None))
         self._chainfile.close()
 
         # write jump statistics files ####
