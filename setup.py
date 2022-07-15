@@ -6,7 +6,7 @@ setup(
     author="Quentin S. Baghi",
     author_email="quentin.baghi@protonmail.com",
     packages=["gibbs"],
-    package_dir={"gibbs": "PTMCMCSampler"},
+    package_dir={"gibbs": "gibbs"},
     url="https://github.com/qbaghi/gibbs",
     license="MIT",
     zip_safe=False,
@@ -14,7 +14,7 @@ setup(
     long_description=open("README.md").read() + "\n\n" + "---------\n\n" + open("HISTORY.md").read(),
     long_description_content_type="text/markdown",
     package_data={"": ["README.md", "HISTORY.md"]},
-    install_requires=["numpy>=1.16.3", "scipy>=1.2.0"],
+    install_requires=["numpy>=1.16.3", "scipy>=1.2.0", "h5py"],
     python_requires=">=3.6",
     extras_require={"mpi": ["mpi4py>=3.0.3"]},
     classifiers=[
