@@ -760,17 +760,16 @@ class PTSampler(object):
                 if self.MPIrank < self.nchain - 1 and self.swapProposed != 0:
                     pt_acc = self.nswap_accepted / self.swapProposed
                 # For text files
-                if not self.hdf5:
-                    self._chainfile.write("\t".join(["%22.22f" % (self._chain[ind, kk]) for kk in range(self.ndim)]))
-                    self._chainfile.write(
-                        "\t%f\t%f\t%f\t%f\n" % (self._lnprob[ind], self._lnlike[ind], self.naccepted / iter, pt_acc)
-                    )
+                self._chainfile.write("\t".join(["%22.22f" % (self._chain[ind, kk]) for kk in range(self.ndim)]))
+                self._chainfile.write(
+                    "\t%f\t%f\t%f\t%f\n" % (self._lnprob[ind], self._lnlike[ind], self.naccepted / iter, pt_acc)
+                )
         else:
 
             indices = (np.arange((iter - self.isave), iter, self.thin) / self.thin).astype(int)
             chain_save = np.array([np.hstack(
-                [self._chain[ind, :], [self._lnprob[ind]], [self._lnlike[ind]], [self._lnlike[ind]]]) 
-                for ind in indices])
+                [self._chain[int(jj / self.thin), :], [self._lnprob[int(jj / self.thin)]], [self._lnlike[int(jj / self.thin)]], [self._lnlike[int(jj / self.thin)]]]) 
+                for jj in range((iter - self.isave), iter, self.thin)])
 
             self._chainfile = h5py.File(self.fname, 'a')
             if 'chains' in self._chainfile.keys():
