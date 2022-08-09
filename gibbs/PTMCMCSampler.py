@@ -6,6 +6,7 @@ import h5py
 import numpy as np
 
 from .nutsjump import HMCJump, MALAJump, NUTSJump
+from .utils import HDF5Store
 
 try:
     from mpi4py import MPI
@@ -297,11 +298,9 @@ class PTSampler(object):
                 self._chainfile = open(self.fname, "a")
         else:
             if self.hdf5:
-                self._chainfile = h5py.File(self.fname, "w")
-                # self._chainfile.create_dataset('lnprob', chunks=True, maxshape=(None,))
-                # self._chainfile.create_dataset('lnlike', chunks=True, maxshape=(None,))
-                # self._chainfile.create_dataset('acceprate', chunks=True, maxshape=(None,))
-                # self._chainfile.create_dataset('ptacc', chunks=True, maxshape=(None,))
+                # self._chainfile = h5py.File(self.fname, "w")
+                self._chainfile = HDF5Store(self.fname, 'chains', shape=(self.ndim + 2, ))
+
             else:    
                 self._chainfile = open(self.fname, "w")
         self._chainfile.close()
@@ -764,20 +763,25 @@ class PTSampler(object):
                 self._chainfile.write(
                     "\t%f\t%f\t%f\t%f\n" % (self._lnprob[ind], self._lnlike[ind], self.naccepted / iter, pt_acc)
                 )
+            
+            self._chainfile.close()
+
         else:
-
-            indices = (np.arange((iter - self.isave), iter, self.thin) / self.thin).astype(int)
+            # indices = (np.arange((iter - self.isave), iter, self.thin) / self.thin).astype(int)
             chain_save = np.array([np.hstack(
-                [self._chain[int(jj / self.thin), :], [self._lnprob[int(jj / self.thin)]], [self._lnlike[int(jj / self.thin)]], [self._lnlike[int(jj / self.thin)]]]) 
+                [self._chain[int(jj / self.thin), :], 
+                [self._lnprob[int(jj / self.thin)]], 
+                [self._lnlike[int(jj / self.thin)]]]) 
                 for jj in range((iter - self.isave), iter, self.thin)])
-
-            self._chainfile = h5py.File(self.fname, 'a')
-            if 'chains' in self._chainfile.keys():
-                self._chainfile["chains"].resize((self._chainfile["chains"].shape[0] + chain_save.shape[0]), axis = 0)
-                self._chainfile["chains"][-chain_save.shape[0]:] = chain_save
-            else:
-                self._chainfile.create_dataset('chains', data=chain_save, chunks=True, maxshape=(None,None))
-        self._chainfile.close()
+            
+            self._chainfile.append(chain_save)
+            # self._chainfile = h5py.File(self.fname, 'a')
+            # if 'chains' in self._chainfile.keys():
+            #     self._chainfile["chains"].resize((self._chainfile["chains"].shape[0] + chain_save.shape[0]), axis = 0)
+            #     self._chainfile["chains"][-chain_save.shape[0]:] = chain_save
+            # else:
+            #     self._chainfile.create_dataset('chains', data=chain_save, chunks=True, maxshape=(None,None))
+       
 
         # write jump statistics files ####
 
