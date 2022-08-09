@@ -1,5 +1,6 @@
 import numpy as np
 import h5py
+import os
 
 
 class HDF5Store(object):
@@ -26,19 +27,39 @@ class HDF5Store(object):
         self.shape = shape
         self.i = 0
         
-        with h5py.File(self.datapath, mode='w') as h5f:
-            self.dset = h5f.create_dataset(
-                dataset,
-                shape=(0, ) + shape,
-                maxshape=(None, ) + shape,
-                dtype=dtype,
-                compression=compression,
-                chunks=(chunk_len, ) + shape)
+        # Create the file if it does not already exists
+        if not os.path.isfile(self.datapath):
+            with h5py.File(self.datapath, mode='w') as h5f:
+                self.dset = h5f.create_dataset(
+                    dataset,
+                    shape=(0, ) + shape,
+                    maxshape=(None, ) + shape,
+                    dtype=dtype,
+                    compression=compression,
+                    chunks=(chunk_len, ) + shape)
     
     def append(self, values):
+        """
+        Append more value to dataset.
+        
+        Parameters
+        ----------
+        values : ndarray
+            Array of values to append. Should have shape (n_values, shape)
+        
+        """
         with h5py.File(self.datapath, mode='a') as h5f:
             dset = h5f[self.dataset]
-            dset.resize((self.i + 1, ) + self.shape)
-            dset[self.i] = [values]
-            self.i += 1
+            values_shape = np.shape(values)
+            
+            if len(values_shape) == len(self.shape):
+                n_values = 1
+            elif len(values_shape) > len(self.shape):
+                n_values = values_shape[0]
+            else:
+                raise ValueError("There is a dimension problem.")
+            dset.resize((self.i + n_values, ) + self.shape)
+            dset[-n_values:] = [values]
+            self.i += n_values
+                
             h5f.flush()

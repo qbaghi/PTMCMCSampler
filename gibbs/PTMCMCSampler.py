@@ -281,29 +281,29 @@ class PTSampler(object):
         self.writeHotChains = writeHotChains
 
         self.resumeLength = 0
-        if self.resume and os.path.isfile(self.fname):
-            if self.verbose:
-                print("Resuming run from chain file {0}".format(self.fname))
-            try:
-                self.resumechain = np.loadtxt(self.fname)
-                self.resumeLength = self.resumechain.shape[0]
-            except ValueError:
-                print("WARNING: Cant read in file. Removing last line.")
-                os.system("sed -ie '$d' {0}".format(self.fname))
-                self.resumechain = np.loadtxt(self.fname)
-                self.resumeLength = self.resumechain.shape[0]
-            if self.hdf5:
-                self._chainfile = h5py.File(self.fname, "a")
-            else:
-                self._chainfile = open(self.fname, "a")
+        
+        if self.hdf5:
+            # If saving output in hdf5 file
+            # self._chainfile = h5py.File(self.fname, "w")
+            self._chainfile = HDF5Store(self.fname, 'chains', shape=(self.ndim + 2, ))
         else:
-            if self.hdf5:
-                # self._chainfile = h5py.File(self.fname, "w")
-                self._chainfile = HDF5Store(self.fname, 'chains', shape=(self.ndim + 2, ))
-
-            else:    
+            # If saving output in text file
+            if self.resume and os.path.isfile(self.fname):
+                if self.verbose:
+                    print("Resuming run from chain file {0}".format(self.fname))
+                try:
+                    self.resumechain = np.loadtxt(self.fname)
+                    self.resumeLength = self.resumechain.shape[0]
+                except ValueError:
+                    print("WARNING: Cant read in file. Removing last line.")
+                    os.system("sed -ie '$d' {0}".format(self.fname))
+                    self.resumechain = np.loadtxt(self.fname)
+                    self.resumeLength = self.resumechain.shape[0]
+                self._chainfile = open(self.fname, "a")
+            else:
                 self._chainfile = open(self.fname, "w")
-        self._chainfile.close()
+            # Closing the text file
+            self._chainfile.close()
 
     def updateChains(self, p0, lnlike0, lnprob0, iter):
         """
@@ -767,21 +767,18 @@ class PTSampler(object):
             self._chainfile.close()
 
         else:
-            # indices = (np.arange((iter - self.isave), iter, self.thin) / self.thin).astype(int)
-            chain_save = np.array([np.hstack(
-                [self._chain[int(jj / self.thin), :], 
-                [self._lnprob[int(jj / self.thin)]], 
-                [self._lnlike[int(jj / self.thin)]]]) 
+            # First create the array to save
+            chain_save = np.array([
+                np.hstack([self._chain[int(jj / self.thin), :], 
+                           [self._lnprob[int(jj / self.thin)]], 
+                           [self._lnlike[int(jj / self.thin)]]])
                 for jj in range((iter - self.isave), iter, self.thin)])
-            
+            # Then append it to the hdf5 file
             self._chainfile.append(chain_save)
-            # self._chainfile = h5py.File(self.fname, 'a')
-            # if 'chains' in self._chainfile.keys():
-            #     self._chainfile["chains"].resize((self._chainfile["chains"].shape[0] + chain_save.shape[0]), axis = 0)
-            #     self._chainfile["chains"][-chain_save.shape[0]:] = chain_save
-            # else:
-            #     self._chainfile.create_dataset('chains', data=chain_save, chunks=True, maxshape=(None,None))
-       
+            # for jj in range((iter - self.isave), iter, self.thin):
+            #     ind = int(jj / self.thin)
+            #     chain_save = np.hstack([self._chain[ind, :], [self._lnprob[ind]], [self._lnlike[ind]]])
+            #     self._chainfile.append(chain_save)
 
         # write jump statistics files ####
 
